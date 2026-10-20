@@ -5,6 +5,7 @@ import asyncio
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
+import aiohttp
 from aiohttp import web
 from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
@@ -22,28 +23,52 @@ bot = Client("music_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user_app = Client("assistant", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 call_py = PyTgCalls(user_app)
 
-def get_audio_stream(query):
+async def get_audio_stream(query):
+    # 1. First Priority: JioSaavn Unofficial API (Zero Bot-Blocks, High Quality)
+    try:
+        saavn_api = f"https://saavn.dev/api/search/songs?query={query}&page=1&limit=1"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(saavn_api, timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    results = data.get("data", {}).get("results", [])
+                    if results:
+                        song = results[0]
+                        title = song.get("name", query)
+                        # Pick highest quality audio URL
+                        download_urls = song.get("downloadUrl", [])
+                        if download_urls:
+                            stream_url = download_urls[-1].get("url")
+                            return stream_url, title
+    except Exception:
+        pass
+
+    # 2. Fallback: yt-dlp with safe search extraction
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
-        'default_search': 'ytsearch',
+        'default_search': 'ytsearch1',
         'noplaylist': True,
-        'source_address': '0.0.0.0',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android_creator', 'ios', 'mweb'],
-                'player_skip': ['webpage', 'configs']
+                'player_client': ['android', 'ios']
             }
-        },
-        'http_headers': {
-            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11; en_US) gzip'
         }
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(query, download=False)
-        if 'entries' in info:
-            info = info['entries'][0]
-        return info['url'], info['title']
+    def _yt_extract():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+            if info and 'entries' in info and len(info['entries']) > 0:
+                entry = info['entries'][0]
+                return entry['url'], entry.get('title', 'Audio Stream')
+            elif info and 'url' in info:
+                return info['url'], info.get('title', 'Audio Stream')
+            return None, None
+
+    audio_url, title = await asyncio.to_thread(_yt_extract)
+    if not audio_url:
+        raise Exception("Gaana nahi mila! Kripya sahi naam likhein.")
+    return audio_url, title
 
 @bot.on_message(filters.command("start"))
 async def start_cmd(client: Client, message: Message):
@@ -75,7 +100,7 @@ async def play_cmd(client: Client, message: Message):
 
     status = await message.reply_text("🔍 Gaana dhoondh raha hoon...")
     try:
-        audio_url, title = get_audio_stream(query)
+        audio_url, title = await get_audio_stream(query)
         await status.edit_text(f"🎶 **Playing:** `{title}`")
         await call_py.join_group_call(
             message.chat.id,
@@ -104,7 +129,7 @@ async def cplay_cmd(client: Client, message: Message):
     status = await message.reply_text("🔍 Channel verify aur gaana search ho raha hai...")
     try:
         chat = await client.get_chat(channel_username)
-        audio_url, title = get_audio_stream(query)
+        audio_url, title = await get_audio_stream(query)
         await status.edit_text(f"🎶 **Playing in Channel:** `{title}`")
         await call_py.join_group_call(
             chat.id,
@@ -146,4 +171,3 @@ async def start_services():
 
 if __name__ == "__main__":
     loop.run_until_complete(start_services())
-
