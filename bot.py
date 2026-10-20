@@ -1,7 +1,12 @@
 import os
 import asyncio
+
+# Event loop fix for Python 3.9 / Pyrogram
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
 from aiohttp import web
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pytgcalls import PyTgCalls
 from pytgcalls.types.input_stream import InputAudioStream
@@ -41,16 +46,14 @@ async def start_cmd(client: Client, message: Message):
     await message.reply_text(
         f"👋 **Namaste {message.from_user.first_name}!**\n\n"
         "Main VC Music Bot hoon.\n\n"
-        "**Group Commands:**\n"
-        "• `/play [gaane ka naam]`\n"
-        "• `/stop`\n\n"
-        "**Channel Commands:**\n"
-        "• `/cplay @channelusername [gaane ka naam]`\n"
-        "• `/cstop @channelusername`",
+        "**Commands:**\n"
+        "• `/play [song]` - Group VC\n"
+        "• `/stop` - Group stop\n"
+        "• `/cplay @channel [song]` - Channel VC\n"
+        "• `/cstop @channel` - Channel stop",
         reply_markup=keyboard
     )
 
-# --- Group Commands ---
 @bot.on_message(filters.command("play") & filters.group)
 async def play_cmd(client: Client, message: Message):
     query = " ".join(message.command[1:])
@@ -77,7 +80,6 @@ async def stop_cmd(client: Client, message: Message):
     except Exception:
         await message.reply_text("Bot abhi VC mein nahi hai.")
 
-# --- Channel Commands ---
 @bot.on_message(filters.command("cplay"))
 async def cplay_cmd(client: Client, message: Message):
     if len(message.command) < 3:
@@ -86,7 +88,7 @@ async def cplay_cmd(client: Client, message: Message):
 
     channel_username = message.command[1]
     query = " ".join(message.command[2:])
-    status = await message.reply_text("🔍 Channel verify aur gaana search ho raha hai...")
+    status = await message.reply_text("🔍 Gaana dhoondh raha hoon...")
     try:
         chat = await client.get_chat(channel_username)
         audio_url, title = get_audio_stream(query)
@@ -96,7 +98,7 @@ async def cplay_cmd(client: Client, message: Message):
             InputAudioStream(audio_url, HighQualityAudio())
         )
     except Exception as e:
-        await status.edit_text(f"⚠️ Error: `{e}`\nCheck karein ki Assistant Channel me Admin hai!")
+        await status.edit_text(f"⚠️ Error: `{e}`")
 
 @bot.on_message(filters.command("cstop"))
 async def cstop_cmd(client: Client, message: Message):
@@ -107,11 +109,10 @@ async def cstop_cmd(client: Client, message: Message):
     try:
         chat = await client.get_chat(channel_username)
         await call_py.leave_group_call(chat.id)
-        await message.reply_text("⏹️ Channel VC se left ho gaya.")
+        await message.reply_text("⏹️ Channel VC band kar diya.")
     except Exception as e:
         await message.reply_text(f"Error: `{e}`")
 
-# Dummy web server for Render keep-alive
 async def web_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
@@ -121,13 +122,13 @@ async def web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-async def main():
+async def start_services():
     await user_app.start()
     await bot.start()
     await call_py.start()
     await web_server()
     print("Bot aur VC Assistant successfully started!")
-    await asyncio.Event().wait()
+    await idle()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop.run_until_complete(start_services())
