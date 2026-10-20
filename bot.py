@@ -1,7 +1,7 @@
 import os
 import asyncio
 
-# Event loop fix
+# Event loop fix for Python 3.9 / Pyrogram
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
@@ -28,10 +28,15 @@ def get_audio_stream(query):
         'quiet': True,
         'default_search': 'ytsearch',
         'noplaylist': True,
+        'source_address': '0.0.0.0',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios']
+                'player_client': ['android_creator', 'ios', 'mweb'],
+                'player_skip': ['webpage', 'configs']
             }
+        },
+        'http_headers': {
+            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11; en_US) gzip'
         }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -141,3 +146,4 @@ async def start_services():
 
 if __name__ == "__main__":
     loop.run_until_complete(start_services())
+
