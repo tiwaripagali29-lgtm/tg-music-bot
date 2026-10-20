@@ -1,5 +1,6 @@
 import os
 import asyncio
+from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pytgcalls import PyTgCalls
@@ -7,7 +8,7 @@ from pytgcalls.types.input_stream import InputAudioStream
 from pytgcalls.types.input_stream.quality import HighQualityAudio
 import yt_dlp
 
-# Credentials read from Render Environment Variables
+# Credentials from Render Environment Variables
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -43,7 +44,7 @@ async def start_cmd(client: Client, message: Message):
     ])
     await message.reply_text(
         f"👋 **Namaste {message.from_user.first_name}!**\n\n"
-        "Main VC Music Bot hoon. Group mein add karein aur `/play [song]` likhein.",
+        "Main VC Music Bot hoon. Group mein add karke admin banayein aur `/play [gaane ka naam]` likhein.",
         reply_markup=keyboard
     )
 
@@ -52,7 +53,7 @@ async def play_cmd(client: Client, message: Message):
     chat_id = message.chat.id
     query = " ".join(message.command[1:])
     if not query:
-        await message.reply_text("❌ Gaane ka naam likhein: `/play Song Name`")
+        await message.reply_text("❌ Gaane ka naam likhein: `/play Kesariya`")
         return
 
     status = await message.reply_text("🔍 Gaana dhoondh raha hoon...")
@@ -79,10 +80,21 @@ async def stream_end_handler(client, update):
     await call_py.leave_group_call(update.chat_id)
     await bot.send_message(update.chat_id, "✅ Gaana khatam ho gaya.")
 
+# Dummy web server to satisfy Render Web Service port check
+async def web_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
 async def main():
     await user_app.start()
     await bot.start()
     await call_py.start()
+    await web_server()
     print("Bot aur VC Assistant successfully started!")
     await asyncio.Event().wait()
 
