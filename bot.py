@@ -1,7 +1,7 @@
 import os
 import asyncio
 
-# Event loop fix for Python 3.9 / Pyrogram
+# Event loop fix
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
@@ -27,7 +27,12 @@ def get_audio_stream(query):
         'format': 'bestaudio/best',
         'quiet': True,
         'default_search': 'ytsearch',
-        'noplaylist': True
+        'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios']
+            }
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(query, download=False)
@@ -46,14 +51,16 @@ async def start_cmd(client: Client, message: Message):
     await message.reply_text(
         f"👋 **Namaste {message.from_user.first_name}!**\n\n"
         "Main VC Music Bot hoon.\n\n"
-        "**Commands:**\n"
-        "• `/play [song]` - Group VC\n"
-        "• `/stop` - Group stop\n"
-        "• `/cplay @channel [song]` - Channel VC\n"
-        "• `/cstop @channel` - Channel stop",
+        "**Group Commands:**\n"
+        "• `/play [gaane ka naam]`\n"
+        "• `/stop`\n\n"
+        "**Channel Commands:**\n"
+        "• `/cplay @channelusername [gaane ka naam]`\n"
+        "• `/cstop @channelusername`",
         reply_markup=keyboard
     )
 
+# --- Group Commands ---
 @bot.on_message(filters.command("play") & filters.group)
 async def play_cmd(client: Client, message: Message):
     query = " ".join(message.command[1:])
@@ -80,6 +87,7 @@ async def stop_cmd(client: Client, message: Message):
     except Exception:
         await message.reply_text("Bot abhi VC mein nahi hai.")
 
+# --- Channel Commands ---
 @bot.on_message(filters.command("cplay"))
 async def cplay_cmd(client: Client, message: Message):
     if len(message.command) < 3:
@@ -88,7 +96,7 @@ async def cplay_cmd(client: Client, message: Message):
 
     channel_username = message.command[1]
     query = " ".join(message.command[2:])
-    status = await message.reply_text("🔍 Gaana dhoondh raha hoon...")
+    status = await message.reply_text("🔍 Channel verify aur gaana search ho raha hai...")
     try:
         chat = await client.get_chat(channel_username)
         audio_url, title = get_audio_stream(query)
@@ -98,7 +106,7 @@ async def cplay_cmd(client: Client, message: Message):
             InputAudioStream(audio_url, HighQualityAudio())
         )
     except Exception as e:
-        await status.edit_text(f"⚠️ Error: `{e}`")
+        await status.edit_text(f"⚠️ Error: `{e}`\nCheck karein ki Assistant Channel me Admin hai!")
 
 @bot.on_message(filters.command("cstop"))
 async def cstop_cmd(client: Client, message: Message):
@@ -113,6 +121,7 @@ async def cstop_cmd(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"Error: `{e}`")
 
+# Render keep-alive server
 async def web_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
