@@ -8,7 +8,6 @@ from pytgcalls.types.input_stream import InputAudioStream
 from pytgcalls.types.input_stream.quality import HighQualityAudio
 import yt_dlp
 
-# Credentials from Render Environment Variables
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -36,21 +35,24 @@ async def start_cmd(client: Client, message: Message):
     bot_info = await client.get_me()
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(
-                "➕ Add Me To Your Group", 
-                url=f"https://t.me/{bot_info.username}?startgroup=true"
-            )
+            InlineKeyboardButton("➕ Add Me To Group/Channel", url=f"https://t.me/{bot_info.username}?startgroup=true")
         ]
     ])
     await message.reply_text(
         f"👋 **Namaste {message.from_user.first_name}!**\n\n"
-        "Main VC Music Bot hoon. Group mein add karke admin banayein aur `/play [gaane ka naam]` likhein.",
+        "Main VC Music Bot hoon.\n\n"
+        "**Group Commands:**\n"
+        "• `/play [gaane ka naam]`\n"
+        "• `/stop`\n\n"
+        "**Channel Commands:**\n"
+        "• `/cplay @channelusername [gaane ka naam]`\n"
+        "• `/cstop @channelusername`",
         reply_markup=keyboard
     )
 
+# --- Group Commands ---
 @bot.on_message(filters.command("play") & filters.group)
 async def play_cmd(client: Client, message: Message):
-    chat_id = message.chat.id
     query = " ".join(message.command[1:])
     if not query:
         await message.reply_text("❌ Gaane ka naam likhein: `/play Kesariya`")
@@ -61,7 +63,7 @@ async def play_cmd(client: Client, message: Message):
         audio_url, title = get_audio_stream(query)
         await status.edit_text(f"🎶 **Playing:** `{title}`")
         await call_py.join_group_call(
-            chat_id,
+            message.chat.id,
             InputAudioStream(audio_url, HighQualityAudio())
         )
     except Exception as e:
@@ -75,12 +77,41 @@ async def stop_cmd(client: Client, message: Message):
     except Exception:
         await message.reply_text("Bot abhi VC mein nahi hai.")
 
-@call_py.on_stream_end()
-async def stream_end_handler(client, update):
-    await call_py.leave_group_call(update.chat_id)
-    await bot.send_message(update.chat_id, "✅ Gaana khatam ho gaya.")
+# --- Channel Commands ---
+@bot.on_message(filters.command("cplay"))
+async def cplay_cmd(client: Client, message: Message):
+    if len(message.command) < 3:
+        await message.reply_text("❌ Sahi format: `/cplay @channelusername GaaneKaNaam`")
+        return
 
-# Dummy web server to satisfy Render Web Service port check
+    channel_username = message.command[1]
+    query = " ".join(message.command[2:])
+    status = await message.reply_text("🔍 Channel verify aur gaana search ho raha hai...")
+    try:
+        chat = await client.get_chat(channel_username)
+        audio_url, title = get_audio_stream(query)
+        await status.edit_text(f"🎶 **Playing in Channel:** `{title}`")
+        await call_py.join_group_call(
+            chat.id,
+            InputAudioStream(audio_url, HighQualityAudio())
+        )
+    except Exception as e:
+        await status.edit_text(f"⚠️ Error: `{e}`\nCheck karein ki Assistant Channel me Admin hai!")
+
+@bot.on_message(filters.command("cstop"))
+async def cstop_cmd(client: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Format: `/cstop @channelusername`")
+        return
+    channel_username = message.command[1]
+    try:
+        chat = await client.get_chat(channel_username)
+        await call_py.leave_group_call(chat.id)
+        await message.reply_text("⏹️ Channel VC se left ho gaya.")
+    except Exception as e:
+        await message.reply_text(f"Error: `{e}`")
+
+# Dummy web server for Render keep-alive
 async def web_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
