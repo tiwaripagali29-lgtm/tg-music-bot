@@ -11,8 +11,7 @@ from aiohttp import web
 from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import InputAudioStream
-from pytgcalls.types.input_stream.quality import HighQualityAudio
+from pytgcalls.types.input_stream import AudioPiped
 import yt_dlp
 
 API_ID = int(os.environ.get("API_ID"))
@@ -25,7 +24,7 @@ user_app = Client("assistant", api_id=API_ID, api_hash=API_HASH, session_string=
 call_py = PyTgCalls(user_app)
 
 async def get_audio_stream(query):
-    # 1. JioSaavn Direct High-Quality API (Zero bot checks, fast streaming)
+    # 1. JioSaavn Direct High-Quality API
     try:
         clean_query = urllib.parse.quote(query)
         saavn_url = f"https://saavn.dev/api/search/songs?query={clean_query}&page=1&limit=1"
@@ -43,7 +42,7 @@ async def get_audio_stream(query):
     except Exception:
         pass
 
-    # 2. SoundCloud fallback (YouTube IP block bypass)
+    # 2. SoundCloud fallback
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
@@ -100,7 +99,7 @@ async def play_cmd(client: Client, message: Message):
         await status.edit_text(f"🎶 **Playing:** `{title}`")
         await call_py.join_group_call(
             message.chat.id,
-            InputAudioStream(audio_url, HighQualityAudio())
+            AudioPiped(audio_url)
         )
     except Exception as e:
         await status.edit_text(f"⚠️ Error: `{e}`")
@@ -129,7 +128,7 @@ async def cplay_cmd(client: Client, message: Message):
         await status.edit_text(f"🎶 **Playing in Channel:** `{title}`")
         await call_py.join_group_call(
             chat.id,
-            InputAudioStream(audio_url, HighQualityAudio())
+            AudioPiped(audio_url)
         )
     except Exception as e:
         await status.edit_text(f"⚠️ Error: `{e}`\nCheck karein ki Assistant Channel me Admin hai!")
