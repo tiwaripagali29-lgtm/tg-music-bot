@@ -1,7 +1,8 @@
 import os
 import asyncio
+import urllib.parse
 
-# Event loop fix for Python 3.9 / Pyrogram
+# Python 3.9 / Pyrogram Event Loop Fix
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
@@ -24,51 +25,46 @@ user_app = Client("assistant", api_id=API_ID, api_hash=API_HASH, session_string=
 call_py = PyTgCalls(user_app)
 
 async def get_audio_stream(query):
-    # 1. First Priority: JioSaavn Unofficial API (Zero Bot-Blocks, High Quality)
+    # 1. JioSaavn Direct High-Quality API (Zero bot checks, fast streaming)
     try:
-        saavn_api = f"https://saavn.dev/api/search/songs?query={query}&page=1&limit=1"
+        clean_query = urllib.parse.quote(query)
+        saavn_url = f"https://saavn.dev/api/search/songs?query={clean_query}&page=1&limit=1"
         async with aiohttp.ClientSession() as session:
-            async with session.get(saavn_api, timeout=10) as resp:
+            async with session.get(saavn_url, timeout=8) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    results = data.get("data", {}).get("results", [])
-                    if results:
-                        song = results[0]
+                    songs = data.get("data", {}).get("results", [])
+                    if songs:
+                        song = songs[0]
                         title = song.get("name", query)
-                        # Pick highest quality audio URL
                         download_urls = song.get("downloadUrl", [])
                         if download_urls:
-                            stream_url = download_urls[-1].get("url")
-                            return stream_url, title
+                            return download_urls[-1].get("url"), title
     except Exception:
         pass
 
-    # 2. Fallback: yt-dlp with safe search extraction
+    # 2. SoundCloud fallback (YouTube IP block bypass)
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
-        'default_search': 'ytsearch1',
-        'noplaylist': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios']
-            }
-        }
+        'default_search': 'scsearch1',
+        'noplaylist': True
     }
-    def _yt_extract():
+    def _sc_extract():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+            info = ydl.extract_info(f"scsearch1:{query}", download=False)
             if info and 'entries' in info and len(info['entries']) > 0:
                 entry = info['entries'][0]
-                return entry['url'], entry.get('title', 'Audio Stream')
+                return entry['url'], entry.get('title', 'SoundCloud Track')
             elif info and 'url' in info:
-                return info['url'], info.get('title', 'Audio Stream')
+                return info['url'], info.get('title', 'SoundCloud Track')
             return None, None
 
-    audio_url, title = await asyncio.to_thread(_yt_extract)
-    if not audio_url:
-        raise Exception("Gaana nahi mila! Kripya sahi naam likhein.")
-    return audio_url, title
+    audio_url, title = await asyncio.to_thread(_sc_extract)
+    if audio_url:
+        return audio_url, title
+
+    raise Exception("Gaana nahi mila. Kripya doosra naam try karein!")
 
 @bot.on_message(filters.command("start"))
 async def start_cmd(client: Client, message: Message):
