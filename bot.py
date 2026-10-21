@@ -1,7 +1,6 @@
 import os
 import asyncio
 import urllib.parse
-
 # Python 3.9 / Pyrogram Event Loop Fix
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
@@ -24,7 +23,7 @@ user_app = Client("assistant", api_id=API_ID, api_hash=API_HASH, session_string=
 call_py = PyTgCalls(user_app)
 
 async def get_audio_stream(query):
-    # 1. JioSaavn Direct High-Quality API
+    # 1. JioSaavn Direct High-Speed API
     try:
         clean_query = urllib.parse.quote(query)
         saavn_url = f"https://saavn.dev/api/search/songs?query={clean_query}&page=1&limit=1"
@@ -42,7 +41,7 @@ async def get_audio_stream(query):
     except Exception:
         pass
 
-    # 2. SoundCloud fallback
+    # 2. SoundCloud fallback (YouTube IP block bypass)
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
@@ -146,7 +145,7 @@ async def cstop_cmd(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"Error: `{e}`")
 
-# Render keep-alive server
+# Render keep-alive web server
 async def web_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
@@ -155,14 +154,21 @@ async def web_server():
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    print(f"Web server successfully bound to port {port}")
 
-async def start_services():
+async def main():
+    # Render health-check ko pehle pass karwayega
+    await web_server()
+
+    # Telegram client aur assistant start honge
     await user_app.start()
     await bot.start()
     await call_py.start()
-    await web_server()
     print("Bot aur VC Assistant successfully started!")
+
+    # Process ko alive rakhega
     await idle()
 
 if __name__ == "__main__":
-    loop.run_until_complete(start_services())
+    loop.run_until_complete(main())
+
